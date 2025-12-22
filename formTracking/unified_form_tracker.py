@@ -9,6 +9,173 @@ from datetime import datetime
 
 # ---------- Helper Functions ----------
 
+def inject_base_styles():
+    """Inject shared styling for the Streamlit experience."""
+    st.markdown(
+        """
+        <style>
+        :root {
+            --ink: #0b0f1c;
+            --panel: rgba(12, 15, 30, 0.72);
+            --outline: rgba(255, 255, 255, 0.12);
+            --accent: linear-gradient(120deg, #7f5dff, #58d6ff);
+            --muted: rgba(245, 247, 252, 0.7);
+            --text-strong: #f7f8fc;
+        }
+
+        [data-testid="stAppViewContainer"] {
+            background: radial-gradient(circle at 20% 20%, rgba(127, 93, 255, 0.18), transparent 35%),
+                        radial-gradient(circle at 80% 0%, rgba(88, 214, 255, 0.16), transparent 40%),
+                        linear-gradient(135deg, #050915 0%, #0b1224 70%, #050915 100%);
+        }
+
+        .block-container {
+            padding: 32px 28px 48px 28px;
+            max-width: 1100px;
+        }
+
+        h1, h2, h3, h4, h5 {
+            color: var(--text-strong);
+        }
+
+        p, li, label {
+            color: var(--muted);
+        }
+
+        .hero-card, .glass-card, .feature-card-v2, .contact-card, .flow-card {
+            background: var(--panel);
+            border: 1px solid var(--outline);
+            border-radius: 22px;
+            padding: 24px 26px;
+            box-shadow: 0 22px 50px rgba(5, 8, 25, 0.35);
+            backdrop-filter: blur(16px);
+        }
+
+        .hero-card {
+            padding: 34px 32px;
+        }
+
+        .eyebrow {
+            letter-spacing: 0.24em;
+            text-transform: uppercase;
+            color: rgba(247, 248, 252, 0.6);
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+        }
+
+        .hero-title {
+            font-size: clamp(2.2rem, 5vw, 3.4rem);
+            margin: 0 0 12px 0;
+            line-height: 1.1;
+        }
+
+        .hero-subtitle {
+            font-size: 1.05rem;
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 999px;
+            border: 1px solid var(--outline);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-strong);
+            font-weight: 600;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .feature-card-v2 h3 {
+            margin-top: 6px;
+            margin-bottom: 10px;
+        }
+
+        .contact-card {
+            background: linear-gradient(135deg, rgba(127, 93, 255, 0.12), rgba(88, 214, 255, 0.08));
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .flow-card {
+            border-left: 4px solid rgba(127, 93, 255, 0.7);
+        }
+
+        .flow-card.secondary {
+            border-left-color: rgba(88, 214, 255, 0.8);
+        }
+
+        .stat-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-top: 14px;
+        }
+
+        .stat {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 14px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .stat strong {
+            font-size: 1.4rem;
+            color: #7fd4ff;
+        }
+
+        .stButton>button, .stDownloadButton>button {
+            background: var(--accent);
+            color: #050610;
+            border: none;
+            padding: 14px 18px;
+            border-radius: 12px;
+            font-weight: 700;
+            width: 100%;
+            box-shadow: 0 12px 30px rgba(94, 130, 255, 0.35);
+        }
+
+        .stButton>button:hover {
+            transform: translateY(-1px);
+        }
+
+        .stFileUploader div[data-testid="stFileUploaderDropzone"] {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px dashed rgba(255, 255, 255, 0.18);
+        }
+
+        .metric-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--outline);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-strong);
+            font-weight: 600;
+        }
+
+        @media (max-width: 640px) {
+            .block-container {
+                padding: 20px 16px 40px 16px;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
 def calculate_angle(a, b, c):
     """
     Calculates the angle at point b (vertex) formed by a and c.
@@ -201,162 +368,88 @@ def draw_debug_overlay_pushup(frame, kpts, angle, threshold):
 
 def show_landing_page():
     """Display the landing page with mission, features, and contact info."""
-    st.markdown("""
-    <style>
-    .main-header {
-        text-align: center;
-        padding: 40px 20px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 20px;
-        color: white;
-        margin-bottom: 40px;
-    }
-    .feature-card {
-        padding: 30px;
-        border-radius: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        margin: 20px 0;
-        background: white;
-    }
-    .mission-section {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        padding: 40px;
-        border-radius: 20px;
-        margin: 30px 0;
-    }
-    .contact-section {
-        background: #2c3e50;
-        color: white;
-        padding: 40px;
-        border-radius: 20px;
-        margin: 30px 0;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Hero Section
-    st.markdown("""
-    <div class="main-header">
-        <h1 style="font-size: 3.5em; margin: 0;">💪 TrainR</h1>
-        <p style="font-size: 1.5em; margin: 20px 0;">Your AI-Powered Fitness Companion</p>
-        <p style="font-size: 1.1em; opacity: 0.9;">Transform your workouts with real-time form correction and personalized guidance</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Mission Section
-    st.markdown("""
-    <div class="mission-section">
-        <h2 style="color: #2c3e50; text-align: center; margin-bottom: 30px;">🎯 Our Mission</h2>
-        <div style="max-width: 900px; margin: 0 auto;">
-            <p style="font-size: 1.2em; line-height: 1.8; color: #34495e; text-align: center;">
-                Many users perform exercises with improper form, increasing injury risk. Existing fitness apps 
-                provide static guidance that does not adapt to users. Tracking nutrition consistently is 
-                time-consuming and difficult to maintain.
+    st.markdown(
+        """
+        <div class="hero-card">
+            <div class="pill">AI Rehab Studio</div>
+            <h1 class="hero-title">Move better with confident, beautiful feedback.</h1>
+            <p class="hero-subtitle">
+                TrainR blends live computer vision with PT-approved coaching. Calibrate, choose your flow,
+                and get cinematic cues that keep every rep intentional.
             </p>
-            <p style="font-size: 1.2em; line-height: 1.8; color: #34495e; text-align: center; margin-top: 20px;">
-                <strong>TrainR</strong> solves these problems by providing AI-powered, real-time form correction, 
-                intelligent nutrition tracking, and adaptive education that grows with you.
-            </p>
+            <div class="stat-row">
+                <div class="stat"><strong>--</strong><span>sessions guided</span></div>
+                <div class="stat"><strong>--</strong><span>tracking precision</span></div>
+                <div class="stat"><strong>--</strong><span>movement templates</span></div>
+            </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Core Features Section
-    st.markdown("### 🚀 Core Features")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("""
-        <div class="feature-card">
-            <h3 style="color: #667eea;">🎥 Real-Time Form Correction</h3>
-            <p style="color: #7f8c8d; line-height: 1.6;">
-                Track key joints and receive immediate, actionable feedback during exercises. 
-                Our AI analyzes your form in real-time to prevent injuries and maximize effectiveness.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("""
-        <div class="feature-card">
-            <h3 style="color: #667eea;">🍎 AI Nutrition Analysis</h3>
-            <p style="color: #7f8c8d; line-height: 1.6;">
-                Simply input your meal data and get instant macronutrient estimates. 
-                Make nutrition tracking effortless and maintainable.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown("""
-        <div class="feature-card">
-            <h3 style="color: #667eea;">📚 Adaptive Education</h3>
-            <p style="color: #7f8c8d; line-height: 1.6;">
-                Receive personalized educational tips based on your progress and habits. 
-                Learn and improve with guidance tailored to your fitness journey.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Note about upcoming features
-    st.info("💡 **Note:** Real-Time Form Correction, AI Nutrition Analysis, and Adaptive Education are coming soon! Currently, we support Pull-ups and Push-ups form analysis.")
-    
-    # Get Started Button
-    st.markdown("<br>", unsafe_allow_html=True)
-    col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
-    with col_btn2:
-        if st.button("🚀 Get Started!", key="get_started", use_container_width=True, type="primary"):
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col_cta1, col_cta2 = st.columns([1, 1])
+    with col_cta1:
+        if st.button("🚀 Launch today’s plan", key="cta_schedule", use_container_width=True, type="primary"):
             st.session_state.page = "workout_schedule"
             st.rerun()
-    
-    # Contact Section
-    st.markdown("---")
-    st.markdown("""
-    <div class="contact-section">
-        <h2 style="text-align: center; margin-bottom: 30px;">📧 Contact Us</h2>
-        <div style="text-align: center; max-width: 600px; margin: 0 auto;">
-            <p style="font-size: 1.1em; line-height: 1.8;">
-                Have questions or feedback? We'd love to hear from you!
-            </p>
-            <p style="font-size: 1.1em; margin-top: 20px;">
-                📧 Email: <a href="mailto:contact@trainr.app" style="color: #3498db;">contact@trainr.app</a>
-            </p>
-            <p style="font-size: 1.1em;">
-                💬 We're here to help you achieve your fitness goals!
-            </p>
+    with col_cta2:
+        st.markdown(
+            """
+            <div class="glass-card">
+                <div class="eyebrow">What’s inside</div>
+                <p style="margin:4px 0 10px;">Live form overlays, therapist cues, and adaptive checklists for each movement.</p>
+                <div class="metric-chip">🎥 Pose overlays</div>
+                <div class="metric-chip" style="margin-top:8px;">🧠 Smart coaching</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("### Core capabilities")
+    st.markdown(
+        """
+        <div class="feature-grid">
+            <div class="feature-card-v2">
+                <div class="pill">01</div>
+                <h3>Real-time form correction</h3>
+                <p>Track key joints and get instant, actionable cues to prevent injuries and build consistency.</p>
+            </div>
+            <div class="feature-card-v2">
+                <div class="pill">02</div>
+                <h3>Nutrition pulse</h3>
+                <p>Quick macros with AI-assisted estimates so logging feels effortless and sustainable.</p>
+            </div>
+            <div class="feature-card-v2">
+                <div class="pill">03</div>
+                <h3>Adaptive education</h3>
+                <p>Short insights tailored to your habits and progress to keep you learning without overload.</p>
+            </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        """
+        <div class="contact-card" style="margin-top:18px;">
+            <div class="eyebrow">Stay in touch</div>
+            <h3 style="margin:6px 0 6px;">Have feedback or want early features?</h3>
+            <p style="margin:0 0 12px;">We’d love to hear from you. Send a note and let’s shape TrainR together.</p>
+            <div class="metric-chip">📧 contact@trainr.app</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def show_workout_schedule():
     """Display today's workout schedule."""
-    st.markdown("""
-    <style>
-    .workout-card {
-        padding: 30px;
-        border-radius: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        margin: 20px 0;
-        background: white;
-        border-left: 5px solid;
-    }
-    .pullup-card {
-        border-left-color: #4CAF50;
-    }
-    .pushup-card {
-        border-left-color: #2196F3;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
     # Header
     today = datetime.now().strftime("%B %d, %Y")
-    st.title("📅 Today's Workout Schedule")
-    st.markdown(f"### {today}")
-    st.markdown("---")
-    
+    st.title("📅 Today’s workout")
+    st.markdown(f"**{today}**")
+
     # Back button
     if st.button("← Back to Home", key="back_home"):
         st.session_state.page = "landing"
@@ -365,46 +458,42 @@ def show_workout_schedule():
     st.markdown("<br>", unsafe_allow_html=True)
     
     # Pull-up Exercise Card
-    st.markdown("""
-    <div class="workout-card pullup-card">
-        <h2 style="color: #4CAF50; margin-bottom: 10px;">🏋️‍♂️ Pull-ups</h2>
-        <p style="font-size: 1.3em; color: #34495e; margin: 15px 0;">
-            <strong>3 sets of 2-3 reps</strong>
-        </p>
-        <p style="color: #7f8c8d; margin-top: 10px;">
-            Focus on proper form: Chin must go above the bar for a valid rep.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("▶️ Start Pull-ups", key="start_pullup", use_container_width=True, type="primary"):
-            st.session_state.page = "exercise"
-            st.session_state.exercise = "pullup"
-            st.rerun()
-    
+    st.markdown(
+        """
+        <div class="flow-card">
+            <div class="eyebrow">Strength</div>
+            <h2 style="margin:6px 0;">🏋️‍♂️ Pull-ups</h2>
+            <p style="margin: 0 0 12px;"><strong>3 sets of 2-3 reps</strong></p>
+            <p style="margin:0;">Chin clears the bar with control. Focus on lat drive and stacked shoulders.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if st.button("▶️ Start Pull-ups", key="start_pullup", use_container_width=True, type="primary"):
+        st.session_state.page = "exercise"
+        st.session_state.exercise = "pullup"
+        st.rerun()
+
     st.markdown("<br>", unsafe_allow_html=True)
-    
+
     # Push-up Exercise Card
-    st.markdown("""
-    <div class="workout-card pushup-card">
-        <h2 style="color: #2196F3; margin-bottom: 10px;">🏃 Push-ups</h2>
-        <p style="font-size: 1.3em; color: #34495e; margin: 15px 0;">
-            <strong>3 sets of 5-8 reps</strong>
-        </p>
-        <p style="color: #7f8c8d; margin-top: 10px;">
-            Maintain proper elbow angle to avoid flaring and maximize effectiveness.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("▶️ Start Push-ups", key="start_pushup", use_container_width=True, type="primary"):
-            st.session_state.page = "exercise"
-            st.session_state.exercise = "pushup"
-            st.rerun()
+    st.markdown(
+        """
+        <div class="flow-card secondary">
+            <div class="eyebrow">Control</div>
+            <h2 style="margin:6px 0;">🏃 Push-ups</h2>
+            <p style="margin: 0 0 12px;"><strong>3 sets of 5-8 reps</strong></p>
+            <p style="margin:0;">Keep elbows tucked, ribs down, and move through a smooth 4s cadence.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if st.button("▶️ Start Push-ups", key="start_pushup", use_container_width=True, type="primary"):
+        st.session_state.page = "exercise"
+        st.session_state.exercise = "pushup"
+        st.rerun()
 
 
 def show_exercise_analysis():
@@ -675,6 +764,7 @@ def show_exercise_analysis():
 # ---------- Streamlit App ----------
 
 st.set_page_config(page_title="TrainR - AI Fitness Companion", page_icon="💪", layout="wide")
+inject_base_styles()
 
 # Initialize session state
 if "page" not in st.session_state:
