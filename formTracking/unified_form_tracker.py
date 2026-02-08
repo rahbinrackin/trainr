@@ -364,6 +364,167 @@ def draw_debug_overlay_pushup(frame, kpts, angle, threshold):
     return frame
 
 
+# ---------- Squat Functions ----------
+# COCO: 11=l_hip, 12=r_hip, 13=l_knee, 14=r_knee, 15=l_ankle, 16=r_ankle
+
+def get_pose_details_squat(results):
+    """
+    Extracts keypoints for squat analysis.
+    Returns: hip_y, knee_angle_deg, keypoints dict.
+    knee_angle is the average of left/right hip-knee-ankle angle (lower = deeper squat).
+    """
+    if results is None or len(results) == 0:
+        return None, None, None
+
+    r = results[0]
+    if r.keypoints is None or r.keypoints.xy is None:
+        return None, None, None
+
+    kpts = r.keypoints.xy
+    if kpts.shape[0] == 0:
+        return None, None, None
+
+    dets = r.boxes
+    if dets is None or len(dets) == 0:
+        return None, None, None
+
+    scores = dets.conf.cpu().numpy()
+    main_idx = int(scores.argmax())
+    person_kpts = kpts[main_idx].cpu().numpy()
+
+    def get_pt(idx):
+        if idx < len(person_kpts) and person_kpts[idx][0] != 0 and person_kpts[idx][1] != 0:
+            return person_kpts[idx]
+        return None
+
+    keypoints = {
+        "l_hip": get_pt(11), "r_hip": get_pt(12),
+        "l_knee": get_pt(13), "r_knee": get_pt(14),
+        "l_ankle": get_pt(15), "r_ankle": get_pt(16),
+    }
+
+    hip_y = None
+    hip_coords = [keypoints["l_hip"], keypoints["r_hip"]]
+    hip_coords = [p for p in hip_coords if p is not None]
+    if hip_coords:
+        hip_y = float(np.mean([p[1] for p in hip_coords]))
+
+    knee_angles = []
+    if keypoints["l_hip"] is not None and keypoints["l_knee"] is not None and keypoints["l_ankle"] is not None:
+        knee_angles.append(calculate_angle(keypoints["l_hip"], keypoints["l_knee"], keypoints["l_ankle"]))
+    if keypoints["r_hip"] is not None and keypoints["r_knee"] is not None and keypoints["r_ankle"] is not None:
+        knee_angles.append(calculate_angle(keypoints["r_hip"], keypoints["r_knee"], keypoints["r_ankle"]))
+    knee_angle = float(np.mean(knee_angles)) if knee_angles else None
+
+    return hip_y, knee_angle, keypoints
+
+
+def draw_debug_overlay_squat(frame, kpts, knee_angle, depth_threshold):
+    """Draw knee angles and depth cue for squat."""
+    color = (0, 255, 0) if (knee_angle is not None and knee_angle <= depth_threshold) else (0, 0, 255)
+
+    if kpts["l_hip"] is not None and kpts["l_knee"] is not None and kpts["l_ankle"] is not None:
+        cv2.line(frame, tuple(kpts["l_hip"].astype(int)), tuple(kpts["l_knee"].astype(int)), (255, 255, 0), 2)
+        cv2.line(frame, tuple(kpts["l_knee"].astype(int)), tuple(kpts["l_ankle"].astype(int)), (255, 255, 0), 2)
+    if kpts["r_hip"] is not None and kpts["r_knee"] is not None and kpts["r_ankle"] is not None:
+        cv2.line(frame, tuple(kpts["r_hip"].astype(int)), tuple(kpts["r_knee"].astype(int)), (255, 255, 0), 2)
+        cv2.line(frame, tuple(kpts["r_knee"].astype(int)), tuple(kpts["r_ankle"].astype(int)), (255, 255, 0), 2)
+
+    if knee_angle is not None:
+        cv2.putText(frame, f"Knee: {int(knee_angle)} deg", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+    return frame
+
+
+# ---------- Plank Functions ----------
+# Alignment: angle at hip (shoulder-hip-ankle). Good plank = straight line = ~180°. Works from any camera angle.
+
+def _plank_midpoints(kpts):
+    """Get mid shoulder, mid hip, mid ankle from keypoints dict."""
+    sh = None
+    if kpts["l_sh"] is not None and kpts["r_sh"] is not None:
+        sh = (kpts["l_sh"] + kpts["r_sh"]) / 2
+    elif kpts["l_sh"] is not None:
+        sh = kpts["l_sh"]
+    elif kpts["r_sh"] is not None:
+        sh = kpts["r_sh"]
+    hip = None
+    if kpts["l_hip"] is not None and kpts["r_hip"] is not None:
+        hip = (kpts["l_hip"] + kpts["r_hip"]) / 2
+    elif kpts["l_hip"] is not None:
+        hip = kpts["l_hip"]
+    elif kpts["r_hip"] is not None:
+        hip = kpts["r_hip"]
+    ankle = None
+    if kpts["l_ankle"] is not None and kpts["r_ankle"] is not None:
+        ankle = (kpts["l_ankle"] + kpts["r_ankle"]) / 2
+    elif kpts["l_ankle"] is not None:
+        ankle = kpts["l_ankle"]
+    elif kpts["r_ankle"] is not None:
+        ankle = kpts["r_ankle"]
+    return sh, hip, ankle
+
+
+def get_pose_details_plank(results):
+    """
+    Extracts keypoints for plank analysis.
+    Returns: hip_angle_deg, keypoints dict.
+    hip_angle: angle at the hip (shoulder-hip-ankle). Straight line = 180°. Sag or pike deviates from 180°.
+    This is independent of camera position.
+    """
+    if results is None or len(results) == 0:
+        return None, None
+
+    r = results[0]
+    if r.keypoints is None or r.keypoints.xy is None:
+        return None, None
+
+    kpts = r.keypoints.xy
+    if kpts.shape[0] == 0:
+        return None, None
+
+    dets = r.boxes
+    if dets is None or len(dets) == 0:
+        return None, None
+
+    scores = dets.conf.cpu().numpy()
+    main_idx = int(scores.argmax())
+    person_kpts = kpts[main_idx].cpu().numpy()
+
+    def get_pt(idx):
+        if idx < len(person_kpts) and person_kpts[idx][0] != 0 and person_kpts[idx][1] != 0:
+            return person_kpts[idx]
+        return None
+
+    keypoints = {
+        "l_sh": get_pt(5), "r_sh": get_pt(6),
+        "l_hip": get_pt(11), "r_hip": get_pt(12),
+        "l_ankle": get_pt(15), "r_ankle": get_pt(16),
+    }
+
+    sh, hip, ankle = _plank_midpoints(keypoints)
+    hip_angle = None
+    if sh is not None and hip is not None and ankle is not None:
+        hip_angle = float(calculate_angle(sh, hip, ankle))
+
+    return hip_angle, keypoints
+
+
+def draw_debug_overlay_plank(frame, kpts, hip_angle, tolerance):
+    """Draw shoulder-hip-ankle line. Good = angle within tolerance of 180°."""
+    good = hip_angle is not None and abs(hip_angle - 180.0) <= tolerance
+    color = (0, 255, 0) if good else (0, 0, 255)
+
+    sh, hip, ankle = _plank_midpoints(kpts)
+    if sh is not None and hip is not None:
+        cv2.line(frame, tuple(sh.astype(int)), tuple(hip.astype(int)), color, 3)
+    if hip is not None and ankle is not None:
+        cv2.line(frame, tuple(hip.astype(int)), tuple(ankle.astype(int)), color, 3)
+
+    if hip_angle is not None:
+        cv2.putText(frame, f"Hip angle: {int(hip_angle)} deg", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+    return frame
+
+
 # ---------- Page Functions ----------
 
 def show_landing_page():
@@ -495,6 +656,46 @@ def show_workout_schedule():
         st.session_state.exercise = "pushup"
         st.rerun()
 
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Squat Exercise Card
+    st.markdown(
+        """
+        <div class="flow-card">
+            <div class="eyebrow">Lower body</div>
+            <h2 style="margin:6px 0;">🦵 Squats</h2>
+            <p style="margin: 0 0 12px;"><strong>3 sets of 8–12 reps</strong></p>
+            <p style="margin:0;">Bodyweight squats. Break parallel (knees ~90° or deeper) for a full rep. Keep chest up.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button("▶️ Start Squats", key="start_squat", use_container_width=True, type="primary"):
+        st.session_state.page = "exercise"
+        st.session_state.exercise = "squat"
+        st.rerun()
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Plank Exercise Card
+    st.markdown(
+        """
+        <div class="flow-card secondary">
+            <div class="eyebrow">Core</div>
+            <h2 style="margin:6px 0;">🧘 Plank</h2>
+            <p style="margin: 0 0 12px;"><strong>3 holds of 20–40 seconds</strong></p>
+            <p style="margin:0;">Straight line from shoulders to hips to ankles. No sag or pike.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button("▶️ Start Plank", key="start_plank", use_container_width=True, type="primary"):
+        st.session_state.page = "exercise"
+        st.session_state.exercise = "plank"
+        st.rerun()
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
 
 def show_exercise_analysis():
     """Display exercise analysis page with video upload."""
@@ -527,7 +728,6 @@ def show_exercise_analysis():
                 model = load_model()
                 cap = cv2.VideoCapture(video_path)
 
-                # Setup for output video visualization
                 video_col, metrics_col = st.columns([2, 1])
                 with video_col:
                     stframe = st.empty()
@@ -537,17 +737,14 @@ def show_exercise_analysis():
 
                 good_count = 0
                 total_reps = 0
-                state = "down"  # Start in down position (dead hang)
-                
-                # Track range for calibration
-                min_head_y = None  # Highest position (lowest Y value)
-                max_head_y = None  # Lowest position (highest Y value)
-                
-                # Track if chin went above bar during current rep
+                state = "down"
+                min_head_y = None
+                max_head_y = None
                 chin_above_bar = False
-
                 frame_idx = 0
-                FRAME_STRIDE = 3
+                processed_count = 0
+                FRAME_STRIDE = 6
+                DISPLAY_EVERY = 4
 
                 while True:
                     ret, frame = cap.read()
@@ -558,71 +755,50 @@ def show_exercise_analysis():
                     if frame_idx % FRAME_STRIDE != 0:
                         continue
 
-                    # Inference
                     results = model(frame, verbose=False)
                     head_y, shoulder_y, kpts = get_pose_details_pullup(results)
 
                     if head_y is None or shoulder_y is None or kpts is None:
                         continue
 
-                    # Auto-calibration of range
                     if min_head_y is None:
-                        min_head_y = head_y
-                        max_head_y = head_y
-                    
+                        min_head_y = max_head_y = head_y
                     min_head_y = min(min_head_y, head_y)
                     max_head_y = max(max_head_y, head_y)
-
-                    # Check if chin is above bar (head above shoulders)
-                    head_above_shoulder = head_y < shoulder_y  # Lower Y = higher in image
-
-                    # Define UP/DOWN thresholds based on head position
+                    head_above_shoulder = head_y < shoulder_y
                     head_range = max_head_y - min_head_y
                     if head_range > 0:
-                        # Top position: head significantly above shoulders
                         top_thresh = min_head_y + 0.3 * head_range
-                        # Bottom position: head at or below shoulders
                         bottom_thresh = min_head_y + 0.7 * head_range
                     else:
-                        top_thresh = min_head_y
-                        bottom_thresh = max_head_y
+                        top_thresh, bottom_thresh = min_head_y, max_head_y
 
-                    # State Machine
-                    if state == "down" and head_y < top_thresh:  # Head goes up (lower Y)
+                    if state == "down" and head_y < top_thresh:
                         state = "up"
-                        chin_above_bar = False  # Reset for new rep
-
+                        chin_above_bar = False
                     if state == "up":
-                        # Check if chin goes above bar during this rep
                         if head_above_shoulder:
                             chin_above_bar = True
-
-                        # Check for completion (back down)
                         if head_y > bottom_thresh:
                             state = "down"
                             total_reps += 1
-                            
-                            # Count as good if chin went above bar
                             if chin_above_bar:
                                 good_count += 1
 
-                    # Draw Debug Lines on Frame
                     debug_frame = draw_debug_overlay_pullup(frame.copy(), kpts, head_y, shoulder_y)
-
-                    # Display
-                    stframe.image(cv2.cvtColor(debug_frame, cv2.COLOR_BGR2RGB), channels="RGB", use_container_width=True)
+                    processed_count += 1
+                    if processed_count % DISPLAY_EVERY == 1 or processed_count == 1:
+                        stframe.image(cv2.cvtColor(debug_frame, cv2.COLOR_BGR2RGB), channels="RGB", use_container_width=True)
 
                     good_metric.markdown(f"### ✅ Valid Reps: {good_count}")
                     total_metric.markdown(f"### 📊 Total Reps: {total_reps}")
 
                 cap.release()
-
                 st.divider()
                 st.write(f"**Analysis Complete.**")
                 st.write(f"**Standard:** Chin above bar (head above shoulders)")
                 st.write(f"- ✅ Valid reps (chin above bar): {good_count}")
                 st.write(f"- 📊 Total reps detected: {total_reps}")
-                
                 if total_reps > 0:
                     invalid_count = total_reps - good_count
                     if invalid_count == 0:
@@ -662,7 +838,6 @@ def show_exercise_analysis():
                 model = load_model()
                 cap = cv2.VideoCapture(video_path)
 
-                # Setup for output video visualization
                 video_col, metrics_col = st.columns([2, 1])
                 with video_col:
                     stframe = st.empty()
@@ -670,16 +845,14 @@ def show_exercise_analysis():
                     good_metric = st.empty()
                     bad_metric = st.empty()
 
-                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
-
-                good_count = 0
-                bad_count = 0
+                good_count = bad_count = 0
                 state = "up"
-                min_y, max_y = None, None
+                min_y = max_y = None
                 current_rep_angles = []
-
                 frame_idx = 0
-                FRAME_STRIDE = 3
+                processed_count = 0
+                FRAME_STRIDE = 6
+                DISPLAY_EVERY = 4
 
                 while True:
                     ret, frame = cap.read()
@@ -690,68 +863,50 @@ def show_exercise_analysis():
                     if frame_idx % FRAME_STRIDE != 0:
                         continue
 
-                    # Inference
                     results = model(frame, verbose=False)
                     current_y, kpts = get_pose_details_pushup(results)
 
                     if current_y is None:
                         continue
 
-                    # Auto-calibration of range
-                    if min_y is None: min_y = current_y
-                    if max_y is None: max_y = current_y
+                    if min_y is None: min_y = max_y = current_y
                     min_y = min(min_y, current_y)
                     max_y = max(max_y, current_y)
-
-                    # Define UP/DOWN thresholds
                     range_span = max_y - min_y
                     down_thresh = min_y + 0.6 * range_span
                     up_thresh = min_y + 0.3 * range_span
-
-                    # Calculate Angle
-                    left_angle = 0
-                    right_angle = 0
-                    if kpts['l_sh'] is not None and kpts['l_hip'] is not None and kpts['l_el'] is not None:
+                    left_angle = right_angle = 0
+                    if kpts['l_sh'] and kpts['l_hip'] and kpts['l_el']:
                         left_angle = calculate_angle(kpts['l_hip'], kpts['l_sh'], kpts['l_el'])
-                    if kpts['r_sh'] is not None and kpts['r_hip'] is not None and kpts['r_el'] is not None:
+                    if kpts['r_sh'] and kpts['r_hip'] and kpts['r_el']:
                         right_angle = calculate_angle(kpts['r_hip'], kpts['r_sh'], kpts['r_el'])
-
-                    # Use max angle found to be safe, or average
-                    valid_angles = [a for a in [left_angle, right_angle] if a > 10]  # filter noise
+                    valid_angles = [a for a in [left_angle, right_angle] if a > 10]
                     current_flare = np.mean(valid_angles) if valid_angles else 0
 
-                    # State Machine
                     if state == "up" and current_y > down_thresh:
                         state = "down"
                         current_rep_angles = []
-
                     if state == "down":
                         if current_flare > 0:
                             current_rep_angles.append(current_flare)
-
-                        # Check for completion
                         if current_y < up_thresh:
                             state = "up"
                             if current_rep_angles:
                                 rep_max_flare = np.median(current_rep_angles)
-
-                                # COMPARE AGAINST SLIDER THRESHOLD
                                 if rep_max_flare > flare_threshold:
                                     bad_count += 1
                                 else:
                                     good_count += 1
 
-                    # Draw Debug Lines on Frame
                     debug_frame = draw_debug_overlay_pushup(frame.copy(), kpts, current_flare, flare_threshold)
-
-                    # Display
-                    stframe.image(cv2.cvtColor(debug_frame, cv2.COLOR_BGR2RGB), channels="RGB", use_container_width=True)
+                    processed_count += 1
+                    if processed_count % DISPLAY_EVERY == 1 or processed_count == 1:
+                        stframe.image(cv2.cvtColor(debug_frame, cv2.COLOR_BGR2RGB), channels="RGB", use_container_width=True)
 
                     good_metric.markdown(f"### Good: {good_count}")
                     bad_metric.markdown(f"### Bad: {bad_count}")
 
                 cap.release()
-
                 st.divider()
                 st.write(f"**Analysis Complete.** Threshold used: {flare_threshold}°")
                 if bad_count == 0 and good_count > 0:
@@ -759,6 +914,183 @@ def show_exercise_analysis():
                     st.success("Perfect form! No flaring detected.")
                 elif bad_count > 0:
                     st.error(f"Detected {bad_count} reps with flared elbows (> {flare_threshold}°).")
+
+    elif st.session_state.exercise == "squat":
+        st.subheader("🦵 Squat Analysis")
+        st.sidebar.header("Configuration")
+        depth_threshold = st.sidebar.slider(
+            "Max knee angle at bottom (degrees)",
+            min_value=70,
+            max_value=120,
+            value=100,
+            help="Knee angle (hip-knee-ankle). Lower = deeper squat required for a 'good' rep."
+        )
+        st.sidebar.info("Side or front view. A rep counts only when you hit depth (knee ≤ threshold) and come back up—walking or small movements are ignored.")
+
+        @st.cache_resource
+        def load_model():
+            return YOLO("yolov8n-pose.pt")
+
+        uploaded_file = st.file_uploader("Upload video (Side or front view)", type=["mp4", "mov", "avi"], key="squat_video")
+
+        if uploaded_file is not None:
+            suffix = os.path.splitext(uploaded_file.name)[1]
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+            tmp.write(uploaded_file.read())
+            tmp.close()
+            video_path = tmp.name
+
+            if st.button("Analyze Form", key="squat_analyze"):
+                model = load_model()
+                cap = cv2.VideoCapture(video_path)
+
+                video_col, metrics_col = st.columns([2, 1])
+                with video_col:
+                    stframe = st.empty()
+                with metrics_col:
+                    good_metric = st.empty()
+                    total_metric = st.empty()
+
+                good_count = total_reps = 0
+                state = "up"
+                min_hip_y = max_hip_y = None
+                rep_knee_angles = []
+                frame_idx = 0
+                processed_count = 0
+                FRAME_STRIDE = 6
+                DISPLAY_EVERY = 4
+
+                while True:
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+
+                    frame_idx += 1
+                    if frame_idx % FRAME_STRIDE != 0:
+                        continue
+
+                    results = model(frame, verbose=False)
+                    hip_y, knee_angle, kpts = get_pose_details_squat(results)
+
+                    if hip_y is None:
+                        continue
+
+                    if min_hip_y is None:
+                        min_hip_y = max_hip_y = hip_y
+                    min_hip_y = min(min_hip_y, hip_y)
+                    max_hip_y = max(max_hip_y, hip_y)
+                    range_span = max_hip_y - min_hip_y
+                    down_thresh = min_hip_y + 0.55 * range_span
+                    up_thresh = min_hip_y + 0.35 * range_span
+
+                    if state == "up" and hip_y > down_thresh:
+                        state = "down"
+                        rep_knee_angles = []
+                    if state == "down":
+                        if knee_angle is not None and knee_angle > 10:
+                            rep_knee_angles.append(knee_angle)
+                        if hip_y < up_thresh:
+                            state = "up"
+                            if rep_knee_angles:
+                                bottom_angle = min(rep_knee_angles)
+                                if bottom_angle <= depth_threshold:
+                                    total_reps += 1
+                                    good_count += 1
+
+                    debug_frame = draw_debug_overlay_squat(frame.copy(), kpts, knee_angle, depth_threshold)
+                    processed_count += 1
+                    if processed_count % DISPLAY_EVERY == 1 or processed_count == 1:
+                        stframe.image(cv2.cvtColor(debug_frame, cv2.COLOR_BGR2RGB), channels="RGB", use_container_width=True)
+
+                    good_metric.markdown(f"### ✅ Good depth: {good_count}")
+                    total_metric.markdown(f"### 📊 Valid squats: {total_reps}")
+
+                cap.release()
+                st.divider()
+                st.write(f"**Analysis complete.** Only reps that hit depth (knee ≤ {depth_threshold}°) are counted.")
+                st.write(f"- 📊 Valid squats: {total_reps} (all with good depth)")
+                if total_reps > 0:
+                    st.balloons()
+                    st.success(f"Counted {total_reps} squat(s) with good depth.")
+                else:
+                    st.info("No squats detected. Get full body in frame and squat to at least knee ≤ threshold.")
+
+    elif st.session_state.exercise == "plank":
+        st.subheader("🧘 Plank Analysis")
+        st.sidebar.header("Configuration")
+        align_threshold = st.sidebar.slider(
+            "Tolerance from straight (degrees)",
+            min_value=10,
+            max_value=50,
+            value=25,
+            help="Straight line = 180° at the hip. Good alignment = within this many degrees of 180°. Works from any camera angle."
+        )
+        st.sidebar.info("We measure shoulder–hip–ankle angle (180° = straight). No need for a perfect camera position.")
+
+        @st.cache_resource
+        def load_model():
+            return YOLO("yolov8n-pose.pt")
+
+        uploaded_file = st.file_uploader("Upload video (Side view best)", type=["mp4", "mov", "avi"], key="plank_video")
+
+        if uploaded_file is not None:
+            suffix = os.path.splitext(uploaded_file.name)[1]
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+            tmp.write(uploaded_file.read())
+            tmp.close()
+            video_path = tmp.name
+
+            if st.button("Analyze Form", key="plank_analyze"):
+                model = load_model()
+                cap = cv2.VideoCapture(video_path)
+                fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+                frame_duration = 1.0 / fps
+
+                video_col, metrics_col = st.columns([2, 1])
+                with video_col:
+                    stframe = st.empty()
+                with metrics_col:
+                    time_metric = st.empty()
+                    align_metric = st.empty()
+
+                total_time = 0.0
+                good_align_time = 0.0
+                frame_idx = 0
+                processed_count = 0
+                FRAME_STRIDE = 4
+                DISPLAY_EVERY = 4
+
+                while True:
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+
+                    frame_idx += 1
+                    if frame_idx % FRAME_STRIDE != 0:
+                        continue
+
+                    total_time = frame_idx * frame_duration
+                    results = model(frame, verbose=False)
+                    hip_angle, kpts = get_pose_details_plank(results)
+
+                    if hip_angle is not None and abs(hip_angle - 180.0) <= align_threshold:
+                        good_align_time += frame_duration * FRAME_STRIDE
+
+                    debug_frame = draw_debug_overlay_plank(frame.copy(), kpts, hip_angle, align_threshold)
+                    processed_count += 1
+                    if processed_count % DISPLAY_EVERY == 1 or processed_count == 1:
+                        stframe.image(cv2.cvtColor(debug_frame, cv2.COLOR_BGR2RGB), channels="RGB", use_container_width=True)
+
+                    time_metric.markdown(f"### ⏱ Total: {total_time:.1f}s")
+                    align_metric.markdown(f"### ✅ Good alignment: {good_align_time:.1f}s")
+
+                cap.release()
+                st.divider()
+                st.write(f"**Plank analysis complete.** Good alignment = hip angle within ±{align_threshold}° of 180° (straight line).")
+                st.write(f"- ⏱ Total time: {total_time:.1f}s | ✅ Time in good alignment: {good_align_time:.1f}s")
+                if good_align_time >= 15:
+                    st.balloons()
+                    st.success("Solid plank hold with good alignment!")
 
 
 # ---------- Streamlit App ----------
